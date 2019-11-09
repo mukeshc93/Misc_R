@@ -1,0 +1,65 @@
+##This script reads fixed width file of a bank statments and converts them to json file type and dumps it into a sql server
+##Some code for categorizing the transaction type is also included. Categorizing is done by regular exps
+
+################Getting the bank details
+FullStatement <- readLines("C:/Users/mukes_000/Desktop/FullStatement.txt")
+
+################Removing the bank header and other unwanted part
+FullStatement = as.data.frame(FullStatement[ - c(1:23, (length(FullStatement) - 14):length(FullStatement))])
+
+################Write to a new file and read it again with appropriate widths
+write.table(FullStatement, "banker.csv", row.names = F, col.names = F, sep = " ")
+Full = read.fwf(file.choose(), widths = c(-1, 10, -1, 30, -9, 2, -5, 9, -4, 11))
+colnames(Full) = c("Date", "Description", "Cr/Dr", "Amount", "Balance")
+################Change the data type of each element
+Full$Amount = as.double(gsub(",", "", Full$Amount));Full$Balance = as.double(gsub(",", "", Full$Balance))
+Full$Date = as.Date(Full$Date); Full$Description=as.character(Full$Description)
+
+
+#################Create indices to sample the data based on some account details
+x=NULL;x1 = NULL;x2 = NULL;x3 = NULL;x4 = NULL;x5 = NULL;x6=NULL
+for (i in 1:nrow(Full)) {
+
+    x[i] = grepl("Dr", as.character(Full[i, 3]));x[i]=ifelse(x[i]==T,Full$Amount[i]*(-1),Full$Amount[i])
+
+    x1[i] = grepl("StUBP", as.character(Full[i, 2])) ###########Star token net banking debits
+
+    x2[i] = grepl("NEFT", as.character(Full[i, 2])) ###########Inward Credit through NEFT
+
+    x3[i] = grepl("CWDR", as.character(Full[i, 2])) ###########Cash withdrawn
+
+    x4[i] = grepl("IMPS", as.character(Full[i, 2])) ###########IMPS inward credit
+
+    x5[i] = grepl("BDIPG", as.character(Full[i, 2])) ###########bill desk payment gateway debits
+
+    x6[i] = grepl("CASH", as.character(Full[i, 2]), ignore.case = T) ###########Cash deposited
+
+    }
+
+Full$exactAmount=x
+STUBP = Full[x1,]
+NEFTIMPS = rbind(Full[x2,], Full[x4,])
+CWDR = Full[x3,]
+BDPG=Full[x5,]
+CDP=Full[x6,]
+
+
+
+##########  Converting to JSON templates
+library(jsonlite)
+Fulljson = toJSON(Full)
+STUBPjson = toJSON(STUBP)
+NEFTIMPSjson = toJSON(NEFTIMPS)
+CWDRjson = toJSON(CWDR)
+BDPGjson = toJSON(BDPG)
+CDPjson=toJSON(CDP)
+
+library(rio)####this package can be used to export a file in various file formats like json, XML,csv,rds,stata,SPSS,XBase etc
+export(Full, "Full.json")
+
+############### Dumping the file in  SQL server database
+library(RODBC)
+ch <- odbcDriverConnect('driver={SQL Server};server=mysqlhost;database=mydbname;trusted_connection=true')####establishing connection to the database
+sqlDrop(ch, "table name", errors = FALSE)###removing and old table with same name(recommended)
+sqlSave(ch, tablename)####Here we can write the required table names to the SQL database
+

@@ -1,0 +1,58 @@
+##This script uses a regular experession pattern to categorize the transaction type from the fixed length file of bank statement
+
+library(stringr)
+FullStatement <- readLines(file.choose())
+##################TO get the name
+
+for(i in 1:length(FullStatement))
+{
+  if(grepl("name",FullStatement[i],ignore.case = T)==TRUE)
+  {
+    Name=FullStatement[i]
+  }
+}
+
+################To get the account no
+for(i in 1:length(FullStatement))
+{
+  if(grepl("Account no",FullStatement[i],ignore.case = T)==TRUE)
+  {
+    No=FullStatement[i]
+  }
+}
+
+
+
+for(i in 1:length(FullStatement))
+{
+  if(grepl("Date",FullStatement[i],ignore.case = T)==TRUE)
+  {
+    FullStatement1=FullStatement[-c(1:i-1)]
+  }
+}
+col=strsplit(FullStatement1[1]," ",fixed = T)[[1]]
+y=NULL
+for(i in 1:length(col))
+{
+  y[i]=ifelse(nchar(col[i])<=1,as.logical(FALSE),as.logical(TRUE))
+}
+
+
+col=col[y]
+Full=gsub(" ","",FullStatement1)
+Full=gsub(",","",Full)
+Full=gsub("/","",Full)
+
+y=NULL;y1=NULL
+for( i in 1:length(Full))
+{
+y[i]=as.integer(substr(Full[i],1,1))
+y1[i]=ifelse(is.na(y[i])==TRUE,as.logical(0),as.logical(1))
+}
+Full=Full[y1]
+
+pattern="(\\d+-\\d+-\\d\\d\\d\\d)(\\w\\w)(\\d+.\\d\\d)(\\d+.\\d\\d)"
+
+x=str_match(Full,pattern)
+
+colnames(x)=c("raw",col)
